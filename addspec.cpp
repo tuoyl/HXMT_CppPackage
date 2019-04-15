@@ -44,6 +44,8 @@ void ReadSpecFile(char* filename, double counts, double exposure, int nRows, cha
     fitsfile* fptr;
     char card[FLEN_CARD];
     int status = 0, datatype, anynull;
+    int colnum_COUNTS
+
     if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
     if(ffgky(fptr, TDOUBLE, "EXPOSURE", &exposure, NULL, &status)) PrintError(status);
@@ -51,28 +53,42 @@ void ReadSpecFile(char* filename, double counts, double exposure, int nRows, cha
     if(ffgky(fptr, TSTRING, "TELESCOP", &telescop, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TSTRING, "INSTRUME", &instrume, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "DETCHANS", &detchans, NULL, &status)) PrintError(status);
+    if(fits_get_colnum(fptr, CASEINSEN, "COUNTS", &colnum_COUNTS, &status)) PrintError(status);
 
     for (int currentRow = 1; currentRow <= nRows; currentRow++)
     {
-        if(fits_read_col_dbl(fptr, 2, currentRow, 1, 1, 0.0, &counts, &anynull, &status)) PrintError(status);
-        if(fits_close_file(fptr, &status)) PrintError(status);
+        if(fits_read_col_dbl(fptr, colnum_COUNTS, currentRow, 1, 1, 0.0, &counts, &anynull, &status)) PrintError(status);
+
     }
 
-
+    if(fits_close_file(fptr, &status)) PrintError(status);
 }
 
 void WriteSpecFile()
 {
-
+//TODO:
 }
 
-void ReadRspFile()
+void ReadRspFile(char* filename, double* energ_lo, double* energ_hi, int N_GRP, int F_CHAN, int detchans, double* matrix, int matrix_nRows)
 {
+    fitsfile* fptr;
+    char card[FLEN_CARD];
+    int status = 0, datatype, anynull;
+
+    if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
+    if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
+    if(ffgky(fptr, TINT, "NAXIS2", &matrix_nRows, NULL, &status)) PrintError(status);
+    if(ffgky(fptr, TINT, "DETCHANS", &detchans, NULL, &status)) PrintError(status);
+    for (int currentRow = 1; currentRow <= matrix_nRows; currentRow++)
+    {
+    
+    }
+
 }
 
 void WriteRspFile()
 {
-
+//TODO
 }
 
 void PrintError(int status)
