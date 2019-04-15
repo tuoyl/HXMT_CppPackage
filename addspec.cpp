@@ -44,7 +44,7 @@ void ReadSpecFile(char* filename, double counts, double exposure, int nRows, cha
     fitsfile* fptr;
     char card[FLEN_CARD];
     int status = 0, datatype, anynull;
-    int colnum_COUNTS
+    int colnum_COUNTS;
 
     if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
@@ -74,16 +74,29 @@ void ReadRspFile(char* filename, double* energ_lo, double* energ_hi, int N_GRP, 
     fitsfile* fptr;
     char card[FLEN_CARD];
     int status = 0, datatype, anynull;
+    double doublenull = 0;
+    int colnum_ENERG_LO, colnum_ENERG_HI, colnum_N_GRP, colnum_F_CHAN, colnum_MATRIX;
 
     if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "NAXIS2", &matrix_nRows, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "DETCHANS", &detchans, NULL, &status)) PrintError(status);
-    for (int currentRow = 1; currentRow <= matrix_nRows; currentRow++)
-    {
-    
-    }
 
+    if(fits_get_colnum(fptr, CASEINSEN, "ENERG_LO", &colnum_ENERG_LO, &status)) PrintError(status);
+    if(fits_get_colnum(fptr, CASEINSEN, "ENERG_HI", &colnum_ENERG_HI, &status)) PrintError(status); 
+    if(fits_get_colnum(fptr, CASEINSEN, "N_GRP", &colnum_N_GRP, &status)) PrintError(status);
+    if(fits_get_colnum(fptr, CASEINSEN, "F_CHAN", &colnum_F_CHAN, &status)) PrintError(status);
+    if(fits_get_colnum(fptr, CASEINSEN, "MATRIX", &colnum_MATRIX, &status)) PrintError(status);
+
+    matrix = new double[detchans*matrix_nRows];
+    energ_lo = new double[matrix_nRows];
+    energ_hi = new double[matrix_nRows];
+
+    if(fits_read_col(fptr, TDOUBLE, colnum_ENERG_LO, 1, 1, matrix_nRows, &doublenull, energ_lo, &anynull, &status)) PrintError(status);
+    if(fits_read_col(fptr, TDOUBLE, colnum_ENERG_HI, 1, 1, matrix_nRows, &doublenull, energ_hi, &anynull, &status)) PrintError(status);
+    if(fits_read_col(fptr, TDOUBLE, colnum_MATRIX, 1, 1, matrix_nRows*detchans, &doublenull, matrix, &anynull, &status)) PrintError(status);
+
+    if(fits_close_file(fptr, &status)) PrintError(status);
 }
 
 void WriteRspFile()
