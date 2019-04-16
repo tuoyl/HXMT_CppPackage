@@ -3,12 +3,14 @@
 #include "fitsio.h"
 #include <fstream>
 #include <vector>
+#include <stdlib.h>
 
 
 using namespace std;
 void PrintError(int status);
-void ReadSpecFile(char* filename, double* &counts, double &exposure, int &nRows, char &telescop, char &instrume, int &detchans);
+void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int &out_nRows, int &out_detchans);
 int InitDataSize(char* filename);
+void ReadRspFile(char* filename, double* &energ_lo, double* &energ_hi, int &N_GRP, int &F_CHAN, int &detchans, double* &matrix, int &matrix_nRows);
 
 void help()
 {
@@ -17,49 +19,120 @@ void help()
         <<"addspec inputPHA.txt inputBKG.txt inputRSP.txt spec.fits bkg.fits totalRSP.rsp"<<endl;
 }
 
-
+string out_telescop;
+string out_instrume;
+std::vector<double> spec_exposure;
+std::vector<double> bkg_exposure;
+double total_spec_exposure=0;
 
 int main(int argc, char* argv[])
 {
-    /* Pass Spec file list */
+    for (int argvnum=1; argvnum <= 2; argvnum++)
+    {
+        /* Pass Spec file list */
+        std::ifstream infilelist;
+        infilelist.open(argv[argvnum]);
+        char filename[200];
+        int ifile = 0;
+        double* total_counts;
+        double total_exposure = 0;
+        int counts_size;
+
+        while(infilelist.getline(filename, sizeof(filename)))
+        {
+            std::cout << filename << endl;
+            double* counts;
+            double exposure;
+            int nRows;
+            int detchans;
+
+            /*initial data size*/
+            if (total_counts == NULL)
+            {
+                counts_size = InitDataSize(filename);
+                total_counts = new double[counts_size];
+            }
+            /*initial end*/
+
+            ReadSpecFile(filename, counts, exposure, nRows,detchans);
+
+            if (argvnum == 1)
+            {
+                spec_exposure.push_back(exposure);
+                total_exposure = total_exposure + exposure;
+                total_spec_exposure = total_spec_exposure + exposure;
+                for (int i=0; i <= nRows; i++)
+                {
+                    total_counts[i] = total_counts[i] + counts[i];
+                }
+                cout << "out telescop " << out_telescop << endl;
+                cout << "out instrum " << out_instrume << endl;
+            }
+            else if (argvnum == 2)
+            {
+                bkg_exposure.push_back(exposure);
+                total_exposure = total_exposure + exposure*spec_exposure[ifile]/bkg_exposure[ifile];
+                cout << "out telescop " << out_telescop << endl;
+                cout << "out instrum " << out_instrume << endl;
+            }
+
+            ifile++;
+        }
+        infilelist.close();
+        //TODO: write spectrum
+    }
+
+    /* read and write rsp */
     std::ifstream infilelist;
-    infilelist.open(argv[1]);
+    infilelist.open(argv[3]);
     char filename[200];
     int ifile = 0;
-    double* total_counts;
-    double total_exposure = 0;
-    int counts_size;
+    
+    double* energ_lo;
+    double* energ_hi;
+    int N_GRP=0;
+    int F_CHAN=0;
+    double* out_matrix;
+    std::vector<double*> matrix_tmp;
+    int detchans=0;
+    int matrix_nRows;
 
     while(infilelist.getline(filename, sizeof(filename)))
     {
-        std::cout << filename << endl;
-        double* counts;
-        double exposure;
-        int nRows;
-        char telescop;
-        char instrume;
-        int detchans;
+        double* matrix;
 
-        /*initial data size*/
-        if (total_counts == NULL)
+        /*initial data size (expect matrix)*/
+        if (energ_lo == NULL)
         {
-            counts_size = InitDataSize(filename);
-            total_counts = new double[counts_size];
+            int energ_size=0;
+            energ_size = InitDataSize(filename);
+            energ_lo = new double[energ_size];
+            energ_hi = new double[energ_size];
         }
-        /*initial end*/
 
-        if (counts == NULL) cout << "counts is NULL " << endl;
-        ReadSpecFile(filename, counts, exposure, nRows, telescop, instrume, detchans);
-        if (counts == NULL) cout << "counts is NULL " << endl;
-        total_exposure = total_exposure + exposure;
-        for (int i=0; i <= nRows; i++)
-        {
-            total_counts[i] = total_counts[i] + counts[i];
-        }
-        cout << "telescop " << sizeof(telescop) << endl;
+        ReadRspFile(filename, energ_lo, energ_hi, N_GRP, F_CHAN, detchans, matrix, matrix_nRows);
+        matrix_tmp.push_back(matrix);
 
+        /*initial matrix size*/
+        if ( out_matrix == NULL)
+        {out_matrix = new double[detchans*matrix_nRows];}
+        for(int i=0;i<detchans*matrix_nRows;i++) out_matrix[i] = 0;
+        ifile++;
     }
-    infilelist.close();
+
+    /*merge matrix together*/
+    for (int i=0; i<matrix_tmp.size(); i++)
+    {
+        for (int j=0; j<=detchans*matrix_nRows; j++)
+        {
+            out_matrix[j] = out_matrix[j] + matrix_tmp[i][j]*spec_exposure[i]/total_spec_exposure;
+        }
+    }
+
+    /* write RSP file */
+    //TODO
+
+
 
     return 0;
 }
@@ -77,7 +150,7 @@ int InitDataSize(char* filename)
     return sizenum;
 }
 
-void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int &out_nRows, char &out_telescop, char &out_instrume, int &out_detchans)
+void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int &out_nRows, int &out_detchans)
 {
     fitsfile* fptr;
     int status = 0, datatype, anynull;
@@ -95,10 +168,11 @@ void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
     if(ffgky(fptr, TDOUBLE, "EXPOSURE", &exposure, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "NAXIS2", &nRows, NULL, &status)) PrintError(status);
-    if(ffgky(fptr, TSTRING, "TELESCOP", &out_telescop, NULL, &status)) PrintError(status);
-    if(ffgky(fptr, TSTRING, "INSTRUME", &out_instrume, NULL, &status)) PrintError(status);
+    if(ffgky(fptr, TSTRING, "TELESCOP", &telescop, NULL, &status)) PrintError(status);
+    if(ffgky(fptr, TSTRING, "INSTRUME", &instrume, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "DETCHANS", &detchans, NULL, &status)) PrintError(status);
     if(fits_get_colnum(fptr, CASEINSEN, "COUNTS", &colnum_COUNTS, &status)) PrintError(status);
+
 
     out_counts = new double[nRows];
     int channel;
@@ -110,6 +184,8 @@ void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int
 
     out_nRows = nRows;
     out_exposure = exposure;
+    out_telescop = telescop;
+    out_instrume = instrume;
 
     if(fits_close_file(fptr, &status)) PrintError(status);
 }
@@ -119,7 +195,7 @@ void WriteSpecFile()
 //TODO:
 }
 
-void ReadRspFile(char* filename, double* energ_lo, double* energ_hi, int N_GRP, int F_CHAN, int detchans, double* matrix, int matrix_nRows)
+void ReadRspFile(char* filename, double* &energ_lo, double* &energ_hi, int &N_GRP, int &F_CHAN, int &detchans, double* &matrix, int &matrix_nRows)
 {
     cout << "RSP file: " << filename << endl;
     fitsfile* fptr;
