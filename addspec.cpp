@@ -7,7 +7,7 @@
 
 using namespace std;
 void PrintError(int status);
-void ReadSpecFile(char* filename, double* &counts, double exposure, int nRows, char telescop, char instrume, int detchans);
+void ReadSpecFile(char* filename, double* &counts, double &exposure, int &nRows, char &telescop, char &instrume, int &detchans);
 int InitDataSize(char* filename);
 
 void help()
@@ -46,17 +46,20 @@ int main(int argc, char* argv[])
             counts_size = InitDataSize(filename);
             total_counts = new double[counts_size];
         }
+        /*initial end*/
 
-        cout << "size of counts" << sizeof(counts) << endl;
+        if (counts == NULL) cout << "counts is NULL " << endl;
         ReadSpecFile(filename, counts, exposure, nRows, telescop, instrume, detchans);
+        if (counts == NULL) cout << "counts is NULL " << endl;
         total_exposure = total_exposure + exposure;
-        cout << "size of counts" << sizeof(counts) << endl;
         for (int i=0; i <= nRows; i++)
         {
-//            total_counts[i] = total_counts[i] + counts[i];
+            total_counts[i] = total_counts[i] + counts[i];
         }
+        cout << "telescop " << sizeof(telescop) << endl;
 
     }
+    infilelist.close();
 
     return 0;
 }
@@ -66,7 +69,6 @@ int InitDataSize(char* filename)
     int sizenum; 
 
     fitsfile* fptr;
-    char card[FLEN_CARD];
     int status = 0, datatype, anynull;
     if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
@@ -75,26 +77,39 @@ int InitDataSize(char* filename)
     return sizenum;
 }
 
-void ReadSpecFile(char* filename, double* &counts, double exposure, int nRows, char telescop, char instrume, int detchans)
+void ReadSpecFile(char* filename, double* &out_counts, double &out_exposure, int &out_nRows, char &out_telescop, char &out_instrume, int &out_detchans)
 {
     fitsfile* fptr;
-    char card[FLEN_CARD];
     int status = 0, datatype, anynull;
     double doublenull = 0;
     int colnum_COUNTS;
+
+    double counts;
+    double exposure;
+    int nRows=0;
+    char telescop[20];
+    char instrume[20];
+    int detchans;
 
     if(fits_open_file(&fptr, filename, READONLY, &status)) PrintError(status);
     if(ffmahd(fptr, 2, &datatype, &status)) PrintError(status);
     if(ffgky(fptr, TDOUBLE, "EXPOSURE", &exposure, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "NAXIS2", &nRows, NULL, &status)) PrintError(status);
-    if(ffgky(fptr, TSTRING, "TELESCOP", &telescop, NULL, &status)) PrintError(status);
-    if(ffgky(fptr, TSTRING, "INSTRUME", &instrume, NULL, &status)) PrintError(status);
+    if(ffgky(fptr, TSTRING, "TELESCOP", &out_telescop, NULL, &status)) PrintError(status);
+    if(ffgky(fptr, TSTRING, "INSTRUME", &out_instrume, NULL, &status)) PrintError(status);
     if(ffgky(fptr, TINT, "DETCHANS", &detchans, NULL, &status)) PrintError(status);
     if(fits_get_colnum(fptr, CASEINSEN, "COUNTS", &colnum_COUNTS, &status)) PrintError(status);
 
-    counts = new double[nRows];
+    out_counts = new double[nRows];
+    int channel;
+    for (int currentRow = 1; currentRow <= nRows; currentRow++)
+    {
+        if(fits_read_col_dbl(fptr, colnum_COUNTS, currentRow, 1, 1, 0, &counts, &anynull, &status)) PrintError(status);
+        out_counts[currentRow-1] = counts;
+    }
 
-    if(fits_read_col(fptr, TDOUBLE, colnum_COUNTS, 1, 1, nRows, &doublenull, &counts, &anynull, &status)) PrintError(status);
+    out_nRows = nRows;
+    out_exposure = exposure;
 
     if(fits_close_file(fptr, &status)) PrintError(status);
 }
@@ -108,7 +123,6 @@ void ReadRspFile(char* filename, double* energ_lo, double* energ_hi, int N_GRP, 
 {
     cout << "RSP file: " << filename << endl;
     fitsfile* fptr;
-    char card[FLEN_CARD];
     int status = 0, datatype, anynull;
     double doublenull = 0;
     int colnum_ENERG_LO, colnum_ENERG_HI, colnum_N_GRP, colnum_F_CHAN, colnum_MATRIX;
