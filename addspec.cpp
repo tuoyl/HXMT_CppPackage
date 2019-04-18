@@ -148,9 +148,10 @@ int main(int argc, char* argv[])
 
     /* write RSP file */
     //TODO
-    WriteRspFile(argv[6], out_matrix, matrix_nRows, energ_lo, energ_hi, N_GRP, F_CHAN, e_min, e_max, detchans, out_telescop.c_str(), out_instrume.c_str());
-
-
+    if (strcmp(argv[6], "None") && strcmp(argv[6], "none") != 0)
+    {
+        WriteRspFile(argv[6], out_matrix, matrix_nRows, energ_lo, energ_hi, N_GRP, F_CHAN, e_min, e_max, detchans, out_telescop.c_str(), out_instrume.c_str());
+    }
 
     return 0;
 }
